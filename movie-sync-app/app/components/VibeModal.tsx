@@ -2,151 +2,155 @@
 
 import { useState } from "react";
 
-interface Movie {
-  title: string;
-  url: string;
-  desc: string;
-}
-
 interface VibeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectMovie: (url: string) => void;
 }
 
-const VIBE_CATEGORIES: Record<
-  string,
-  { label: string; icon: string; movies: Movie[] }
-> = {
-  lover: {
-    label: "Lover / Date Night",
-    icon: "❤️",
-    movies: [
-      {
-        title: "Tears of Steel (Sci-Fi Romance)",
-        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        desc: "A futuristic drama filled with passion and visual spectacle.",
-      },
-      {
-        title: "Sintel (Emotional Fantasy)",
-        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-        desc: "An emotional journey of devotion, dragon bonds, and discovery.",
-      },
-    ],
+// Sample Curated Content
+const MOVIE_VIBES = [
+  {
+    title: "Big Buck Bunny",
+    genre: "Animation / Family",
+    vibe: "Lighthearted & Fun 🐰",
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
   },
-  crush: {
-    label: "Secret Crush",
-    icon: "✨",
-    movies: [
-      {
-        title: "Big Buck Bunny (Fun & Lighthearted)",
-        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        desc: "Charming, hilarious, and easygoing for a comfortable watch.",
-      },
-    ],
+  {
+    title: "Sintel",
+    genre: "Fantasy / Adventure",
+    vibe: "Epic & Emotional ⚔️",
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
   },
-  friends: {
-    label: "Best Friends",
-    icon: "🥳",
-    movies: [
-      {
-        title: "Elephants Dream (Mind-Bending)",
-        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-        desc: "Surreal visual experience perfect for group commentary.",
-      },
-    ],
+  {
+    title: "Tears of Steel",
+    genre: "Sci-Fi / Action",
+    vibe: "Futuristic & Thrilling 🤖",
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
   },
-  colleagues: {
-    label: "Colleagues / Chill",
-    icon: "💼",
-    movies: [
-      {
-        title: "For Bigger Blazes (Action Demo)",
-        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        desc: "Quick action stream clip ideal for casual group testing.",
-      },
-    ],
-  },
-};
+];
 
-export default function VibeModal({
-  isOpen,
-  onClose,
-  onSelectMovie,
-}: VibeModalProps) {
-  const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
+const SPORTS_MATCHES = [
+  {
+    title: "Live Match Feed (HLS Stream Demo)",
+    league: "Premier League / Champions League",
+    vibe: "High Intensity Matchday ⚽",
+    url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+  },
+  {
+    title: "Ocean Wildlife Live Sports Stream",
+    league: "Extreme Sports Broadcast",
+    vibe: "Live Action & Drama 🏄‍♂️",
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  },
+];
+
+export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalProps) {
+  const [activeTab, setActiveTab] = useState<"movies" | "sports">("sports");
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative flex flex-col gap-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
+        {/* Modal Header */}
+        <div className="flex justify-between items-start">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              🍿 Vibe Matcher
+              ✨ ESync Match & Vibe Selector
             </h2>
-            <p className="text-xs text-slate-400">
-              Who are you watching with today? Select a vibe to get handpicked movies.
+            <p className="text-xs text-slate-400 mt-1">
+              Select a curated stream or live match feed to broadcast instantly.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-sm font-bold px-2 py-1 rounded-lg bg-slate-800/50"
+            className="text-slate-500 hover:text-white text-lg font-bold p-1"
           >
             ✕
           </button>
         </div>
 
-        {/* Vibe Selection Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {Object.entries(VIBE_CATEGORIES).map(([key, vibe]) => (
-            <button
-              key={key}
-              onClick={() => setSelectedVibe(key)}
-              className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${
-                selectedVibe === key
-                  ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg"
-                  : "bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700"
-              }`}
-            >
-              <span className="text-2xl">{vibe.icon}</span>
-              <span className="text-xs font-semibold">{vibe.label}</span>
-            </button>
-          ))}
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1">
+          <button
+            onClick={() => setActiveTab("sports")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
+              activeTab === "sports"
+                ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            ⚽ Live Sports & Feeds
+          </button>
+          <button
+            onClick={() => setActiveTab("movies")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
+              activeTab === "movies"
+                ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            🍿 Movie Vibe Picks
+          </button>
         </div>
 
-        {/* Recommendation Results */}
-        {selectedVibe && (
-          <div className="flex flex-col gap-3 border-t border-slate-800 pt-4">
-            <h3 className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-              Suggestions for {VIBE_CATEGORIES[selectedVibe].label}:
-            </h3>
-            <div className="flex flex-col gap-2 max-h-52 overflow-y-auto pr-1">
-              {VIBE_CATEGORIES[selectedVibe].movies.map((movie, idx) => (
+        {/* Content List */}
+        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+          {activeTab === "sports"
+            ? SPORTS_MATCHES.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl flex justify-between items-center hover:border-indigo-500/50 transition"
+                  className="bg-slate-950/60 border border-slate-800/80 hover:border-emerald-500/50 p-3.5 rounded-xl flex justify-between items-center transition group"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-white">{movie.title}</p>
-                    <p className="text-[11px] text-slate-400">{movie.desc}</p>
+                    <div className="text-sm font-semibold text-white group-hover:text-emerald-400 transition">
+                      {item.title}
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                      <span>{item.league}</span>
+                      <span>•</span>
+                      <span className="text-emerald-400/80">{item.vibe}</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => {
-                      onSelectMovie(movie.url);
+                      onSelectMovie(item.url);
                       onClose();
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition whitespace-nowrap"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
                   >
-                    Load Movie
+                    Load Stream
+                  </button>
+                </div>
+              ))
+            : MOVIE_VIBES.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="bg-slate-950/60 border border-slate-800/80 hover:border-rose-500/50 p-3.5 rounded-xl flex justify-between items-center transition group"
+                >
+                  <div>
+                    <div className="text-sm font-semibold text-white group-hover:text-rose-400 transition">
+                      {item.title}
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                      <span>{item.genre}</span>
+                      <span>•</span>
+                      <span className="text-rose-400/80">{item.vibe}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onSelectMovie(item.url);
+                      onClose();
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                  >
+                    Watch Now
                   </button>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
