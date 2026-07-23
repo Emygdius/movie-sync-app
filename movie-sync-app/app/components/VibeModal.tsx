@@ -47,6 +47,31 @@ const SPORTS_MATCHES = [
 
 export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalProps) {
   const [activeTab, setActiveTab] = useState<"movies" | "sports">("sports");
+  
+  // OMDb Search States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/movies?s=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (data.Search) {
+        setSearchResults(data.Search);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -60,7 +85,7 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
               ✨ ESync Match & Vibe Selector
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Select a curated stream or live match feed to broadcast instantly.
+              Select a curated stream or search OMDb movies to broadcast.
             </p>
           </div>
           <button
@@ -95,8 +120,58 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
           </button>
         </div>
 
-        {/* Content List */}
-        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+        {/* OMDb Live Search Bar (Visible under Movies tab) */}
+        {activeTab === "movies" && (
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Search OMDb database (e.g. Inception, Avengers)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+            >
+              {loading ? "..." : "Search"}
+            </button>
+          </form>
+        )}
+
+        {/* Live OMDb Search Results */}
+        {activeTab === "movies" && searchResults.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+              🔍 OMDb Search Results
+            </h3>
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+              {searchResults.slice(0, 4).map((item) => (
+                <div
+                  key={item.imdbID}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex gap-2 items-center"
+                >
+                  <img
+                    src={item.Poster !== "N/A" ? item.Poster : "https://via.placeholder.com/50"}
+                    alt={item.Title}
+                    className="w-10 h-12 object-cover rounded"
+                  />
+                  <div className="overflow-hidden">
+                    <div className="text-xs font-bold text-white truncate">
+                      {item.Title}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      {item.Year}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Curated Content List */}
+        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
           {activeTab === "sports"
             ? SPORTS_MATCHES.map((item, idx) => (
                 <div
