@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, use } from "react";
 import { useUser } from "@clerk/nextjs";
 import * as Ably from "ably";
+import Hls from "hls.js";
 import VibeModal from "../../components/VibeModal";
 import MomentModal from "../../components/MomentModal";
 import { useWebRTC } from "../../hooks/useWebRTC";
@@ -17,16 +18,14 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [roomMode, setRoomMode] = useState<"movie" | "sports">("movie");
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
 
-  // Live Score State for Football Mode
-  const [matchData, setMatchData] = useState({
-    homeTeam: "Arsenal",
-    awayTeam: "Chelsea",
-    homeScore: 2,
-    awayScore: 1,
-    minute: "68'",
-    status: "LIVE",
-    league: "Premier League",
-  });
+  // Live Score State (football-data.org integration)
+  const [liveMatch, setLiveMatch] = useState<{
+    homeTeam: string;
+    awayTeam: string;
+    homeScore: number;
+    awayScore: number;
+    league: string;
+  } | null>(null);
 
   // Video & Chat State
   const [videoUrl, setVideoUrl] = useState(
@@ -50,9 +49,9 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     style: "love" | "celebrate";
   } | null>(null);
 
-  // Host Permission Logic
+  // Host Permission Logic & Interactive Role Switcher
   const [hostId, setHostId] = useState<string | null>(null);
-  const isHost = isLoaded && user?.id === hostId;
+  const [isHost, setIsHost] = useState(true); // Defaults to true for room creator
 
   // Real-time Refs & Channel State
   const channelRef = useRef<Ably.RealtimeChannel | null>(null);
@@ -87,12 +86,74 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     }
   }, [remoteStream]);
 
-  // Set initial host
+  // Set initial host from Clerk user
   useEffect(() => {
     if (user && !hostId) {
       setHostId(user.id);
     }
   }, [user, hostId]);
+
+  // Fetch real-time live match data from /api/livescores
+  useEffect(() => {
+    if (roomMode !== "sports") return;
+
+    const fetchLiveScores = async () => {
+      try {
+        const res = await fetch("/api/livescores");
+        const data = await res.json();
+
+        if (data.matches && data.matches.length > 0) {
+          const match = data.matches[0];
+          setLiveMatch({
+            homeTeam: match.homeTeam.shortName || match.homeTeam.name,
+            awayTeam: match.awayTeam.shortName || match.awayTeam.name,
+            homeScore: match.score.fullTime.home ?? match.score.halfTime.home ?? 0,
+            awayScore: match.score.fullTime.away ?? match.score.halfTime.away ?? 0,
+            league: match.competition.name,
+          });
+        } else {
+          setLiveMatch(null);
+        }
+      } catch (err) {
+        console.error("Failed to load live score:", err);
+      }
+    };
+
+    fetchLiveScores();
+    const interval = setInterval(fetchLiveScores, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [roomMode]);
+
+  // Handle Video Sources (Standard MP4 & HLS .m3u8 Streams)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+
+    if (videoUrl.includes(".m3u8")) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+        });
+
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+
+        return () => {
+          hls.destroy();
+        };
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = videoUrl;
+      }
+    } else {
+      video.src = videoUrl;
+    }
+  }, [videoUrl]);
 
   // Connect to Ably WebSocket Channel using dynamic roomId
   useEffect(() => {
@@ -234,9 +295,19 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             {isHost && <span className="text-[10px] opacity-70">⚙️</span>}
           </button>
 
-          <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full font-medium">
-            {isHost ? "👑 Host" : "🍿 Guest"}
-          </span>
+          {/* Interactive Role Switcher Toggle */}
+          <button
+            onClick={() => setIsHost(!isHost)}
+            className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border transition ${
+              isHost
+                ? "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+            }`}
+            title="Click to toggle between Host and Guest controls"
+          >
+            {isHost ? "👑 Host" : "🍿 Guest"}{" "}
+            <span className="text-[10px] opacity-70">(Toggle)</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -267,38 +338,42 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         {/* Main Video Stream Container */}
         <div className={`${isChatOpen ? "lg:col-span-3" : "lg:col-span-4"} flex flex-col gap-4 transition-all`}>
           
-          {/* Live Football Match Scoreboard (Displays when room is in Sports mode) */}
-          {roomMode === "sports" && (
+          {/* Real Live Football Match Scoreboard */}
+          {roomMode === "sports" && liveMatch ? (
             <div className="bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl p-3 shadow-lg flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  {matchData.league}
+                  {liveMatch.league}
                 </span>
                 <span className="text-xs text-rose-500 font-bold animate-pulse flex items-center gap-1">
-                  ● {matchData.status} ({matchData.minute})
+                  ● LIVE
                 </span>
               </div>
 
               {/* Match Teams & Score */}
               <div className="flex items-center gap-4 text-sm font-extrabold text-white">
-                <span>{matchData.homeTeam}</span>
+                <span>{liveMatch.homeTeam}</span>
                 <span className="bg-slate-950 border border-emerald-500/40 px-3 py-1 rounded-md text-emerald-400 font-mono text-base">
-                  {matchData.homeScore} - {matchData.awayScore}
+                  {liveMatch.homeScore} - {liveMatch.awayScore}
                 </span>
-                <span>{matchData.awayTeam}</span>
+                <span>{liveMatch.awayTeam}</span>
               </div>
 
               <div className="text-[11px] text-slate-400 hidden sm:block">
                 ⚡ Live Score Tracker Active
               </div>
             </div>
+          ) : roomMode === "sports" && (
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 text-center text-xs text-slate-400">
+              ⚽ No live matches currently in progress for the available leagues.
+            </div>
           )}
 
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center select-none">
             <video
               ref={videoRef}
-              src={videoUrl}
               controls
+              playsInline
               onPlay={handlePlay}
               onPause={handlePause}
               className="w-full h-full object-contain"
