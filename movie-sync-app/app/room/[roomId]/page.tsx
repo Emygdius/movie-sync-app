@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use } from "react";
 import { useUser } from "@clerk/nextjs";
 import * as Ably from "ably";
 import VibeModal from "../../components/VibeModal";
+import MomentModal from "../../components/MomentModal";
 import { useWebRTC } from "../../hooks/useWebRTC";
 
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
@@ -27,8 +28,15 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [chatInput, setChatInput] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Vibe / Match Modal State
+  // Vibe & Moment Modal States
   const [isVibeModalOpen, setIsVibeModalOpen] = useState(false);
+  const [isMomentModalOpen, setIsMomentModalOpen] = useState(false);
+
+  // Active Interruption Overlay State
+  const [activeMoment, setActiveMoment] = useState<{
+    message: string;
+    style: "love" | "celebrate";
+  } | null>(null);
 
   // Host Permission Logic
   const [hostId, setHostId] = useState<string | null>(null);
@@ -52,6 +60,32 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Draggable & Minimize Overlay State
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [overlayPos, setOverlayPos] = useState({ x: 16, y: 16 }); // Offset from top-right
+  const isDragging = useRef(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragStartPos.current = {
+      x: e.clientX - overlayPos.x,
+      y: e.clientY - overlayPos.y,
+    };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current) return;
+    setOverlayPos({
+      x: e.clientX - dragStartPos.current.x,
+      y: e.clientY - dragStartPos.current.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+  };
 
   // Bind WebRTC Local Stream
   useEffect(() => {
@@ -102,6 +136,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
       }, 300);
     });
 
+    channel.subscribe("special-moment", (msg) => {
+      setActiveMoment(msg.data);
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+    });
+
     channel.subscribe("chat-message", (msg) => {
       setMessages((prev) => [...prev, msg.data]);
     });
@@ -147,6 +188,11 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
       type: "CHANGE_MODE",
       mode: mode,
     });
+  };
+
+  const handleTriggerMoment = (message: string, style: "love" | "celebrate") => {
+    if (!isHost) return;
+    channelRef.current?.publish("special-moment", { message, style });
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -222,9 +268,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
       {/* Main Content Layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
-        {/* Left Area: Main Video Stream & Webcams */}
+        {/* Left Area: Main Video Stream & Draggable Webcams */}
         <div className="lg:col-span-3 flex flex-col gap-4">
-          <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center">
+          <div
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center select-none"
+          >
             <video
               ref={videoRef}
               src={videoUrl}
@@ -234,63 +284,120 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               className="w-full h-full object-contain"
             />
 
-            {/* Live WebRTC Camera Overlays */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
-              {/* Partner Feed */}
-              <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-2xl backdrop-blur">
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                {!remoteStream && (
-                  <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                    Waiting for Partner... 📹
-                  </div>
-                )}
-                <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
-                  Partner
+            {/* Special Interruption Overlay */}
+            {activeMoment && (
+              <div className="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                <div className="text-5xl mb-3">
+                  {activeMoment.style === "love" ? "💖" : "🎉"}
                 </div>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
+                  {activeMoment.style === "love" ? "A Special Moment" : "Match Celebration!"}
+                </h3>
+                <p className="text-base text-indigo-200 max-w-lg mb-6 font-medium">
+                  "{activeMoment.message}"
+                </p>
+                <button
+                  onClick={() => setActiveMoment(null)}
+                  className="bg-white text-slate-900 text-xs px-5 py-2 rounded-full font-bold shadow-lg hover:bg-slate-200 transition"
+                >
+                  Resume Watch Party 🍿
+                </button>
               </div>
+            )}
 
-              {/* Your Local Feed */}
-              <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-2xl backdrop-blur group">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover ${isVideoMuted ? "hidden" : "block"}`}
-                />
-                {isVideoMuted && (
-                  <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                    Cam Off 🚫
+            {/* Draggable & Collapsible WebRTC Camera Container */}
+            <div
+              style={{ top: `${overlayPos.y}px`, right: `${overlayPos.x}px` }}
+              className="absolute z-30 flex flex-col gap-2"
+            >
+              {isMinimized ? (
+                /* Minimized Floating Bubble */
+                <button
+                  onClick={() => setIsMinimized(false)}
+                  className="bg-slate-900/90 border border-indigo-500/50 text-indigo-300 hover:text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-2xl backdrop-blur flex items-center gap-2 transition"
+                >
+                  <span>📹 Cameras Active</span>
+                  <span className="text-[10px] bg-indigo-600 px-1.5 py-0.5 rounded-full text-white">
+                    Expand
+                  </span>
+                </button>
+              ) : (
+                /* Expanded Floating Camera Deck */
+                <div className="flex flex-col gap-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/80 shadow-2xl backdrop-blur">
+                  {/* Drag Handle & Control Header */}
+                  <div
+                    onMouseDown={handleMouseDown}
+                    className="flex justify-between items-center cursor-grab active:cursor-grabbing pb-1 border-b border-slate-800/60 px-1"
+                  >
+                    <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                      <span>::</span> Live Video
+                    </span>
+                    <button
+                      onClick={() => setIsMinimized(true)}
+                      className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded bg-slate-800/60"
+                      title="Minimize Overlay"
+                    >
+                      —
+                    </button>
                   </div>
-                )}
 
-                {/* Mic/Cam Quick Controls on Hover */}
-                <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                  <button
-                    type="button"
-                    onClick={toggleAudio}
-                    className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
-                  >
-                    {isAudioMuted ? "🔇" : "🎙️"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleVideo}
-                    className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
-                  >
-                    {isVideoMuted ? "📷" : "📹"}
-                  </button>
-                </div>
+                  {/* Partner Video Feed */}
+                  <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-lg">
+                    <video
+                      ref={remoteVideoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    {!remoteStream && (
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                        Waiting for Partner... 📹
+                      </div>
+                    )}
+                    <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                      Partner
+                    </div>
+                  </div>
 
-                <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
-                  You
+                  {/* Local Video Feed */}
+                  <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-lg group">
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`w-full h-full object-cover ${isVideoMuted ? "hidden" : "block"}`}
+                    />
+                    {isVideoMuted && (
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                        Cam Off 🚫
+                      </div>
+                    )}
+
+                    {/* Mic/Cam Quick Controls on Hover */}
+                    <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={toggleAudio}
+                        className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                      >
+                        {isAudioMuted ? "🔇" : "🎙️"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleVideo}
+                        className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                      >
+                        {isVideoMuted ? "📷" : "📹"}
+                      </button>
+                    </div>
+
+                    <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                      You
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -319,9 +426,16 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
               <button
                 onClick={() => setIsVibeModalOpen(true)}
-                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
               >
                 ✨ {roomMode === "sports" ? "Match Matcher" : "Vibe Matcher"}
+              </button>
+
+              <button
+                onClick={() => setIsMomentModalOpen(true)}
+                className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:opacity-90 text-pink-300 border border-pink-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition whitespace-nowrap"
+              >
+                💖 Trigger Moment
               </button>
             </div>
           ) : (
@@ -440,6 +554,13 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         isOpen={isVibeModalOpen}
         onClose={() => setIsVibeModalOpen(false)}
         onSelectMovie={handleLoadVideo}
+      />
+
+      {/* Special Moment Modal */}
+      <MomentModal
+        isOpen={isMomentModalOpen}
+        onClose={() => setIsMomentModalOpen(false)}
+        onTriggerMoment={handleTriggerMoment}
       />
     </div>
   );
