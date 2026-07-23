@@ -8,45 +8,8 @@ interface VibeModalProps {
   onSelectMovie: (url: string) => void;
 }
 
-// Sample Curated Content
-const MOVIE_VIBES = [
-  {
-    title: "Big Buck Bunny",
-    genre: "Animation / Family",
-    vibe: "Lighthearted & Fun 🐰",
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-  },
-  {
-    title: "Sintel",
-    genre: "Fantasy / Adventure",
-    vibe: "Epic & Emotional ⚔️",
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-  },
-  {
-    title: "Tears of Steel",
-    genre: "Sci-Fi / Action",
-    vibe: "Futuristic & Thrilling 🤖",
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-  },
-];
-
-const SPORTS_MATCHES = [
-  {
-    title: "Live Match Feed (HLS Stream Demo)",
-    league: "Premier League / Champions League",
-    vibe: "High Intensity Matchday ⚽",
-    url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
-  },
-  {
-    title: "Ocean Wildlife Live Sports Stream",
-    league: "Extreme Sports Broadcast",
-    vibe: "Live Action & Drama 🏄‍♂️",
-    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-  },
-];
-
 export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalProps) {
-  const [activeTab, setActiveTab] = useState<"movies" | "sports">("sports");
+  const [activeTab, setActiveTab] = useState<"movies" | "sports">("movies");
   
   // OMDb Search States
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,10 +45,10 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
         <div className="flex justify-between items-start">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              ✨ ESync Match & Vibe Selector
+              ✨ ESync Media Search
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Select a curated stream or search OMDb movies to broadcast.
+              Search live broadcasts or catalog titles.
             </p>
           </div>
           <button
@@ -99,16 +62,6 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
         {/* Tab Switcher */}
         <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1">
           <button
-            onClick={() => setActiveTab("sports")}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
-              activeTab === "sports"
-                ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            ⚽ Live Sports & Feeds
-          </button>
-          <button
             onClick={() => setActiveTab("movies")}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
               activeTab === "movies"
@@ -116,16 +69,26 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            🍿 Movie Vibe Picks
+            🍿 Movie Catalog
+          </button>
+          <button
+            onClick={() => setActiveTab("sports")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
+              activeTab === "sports"
+                ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            ⚽ Live Sports Feeds
           </button>
         </div>
 
-        {/* OMDb Live Search Bar (Visible under Movies tab) */}
+        {/* OMDb Live Search Bar */}
         {activeTab === "movies" && (
           <form onSubmit={handleSearch} className="flex gap-2">
             <input
               type="text"
-              placeholder="Search OMDb database (e.g. Inception, Avengers)..."
+              placeholder="Search movie catalog (e.g. Inception, Batman)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
@@ -139,93 +102,48 @@ export default function VibeModal({ isOpen, onClose, onSelectMovie }: VibeModalP
           </form>
         )}
 
-        {/* Live OMDb Search Results */}
+        {/* OMDb Search Results */}
         {activeTab === "movies" && searchResults.length > 0 && (
           <div className="space-y-2">
             <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
-              🔍 OMDb Search Results
+              🔍 Catalog Results
             </h3>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
-              {searchResults.slice(0, 4).map((item) => (
+            <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
+              {searchResults.map((item) => (
                 <div
                   key={item.imdbID}
-                  className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex gap-2 items-center"
+                  className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 rounded-xl p-2.5 flex justify-between items-center transition"
                 >
-                  <img
-                    src={item.Poster !== "N/A" ? item.Poster : "https://via.placeholder.com/50"}
-                    alt={item.Title}
-                    className="w-10 h-12 object-cover rounded"
-                  />
-                  <div className="overflow-hidden">
-                    <div className="text-xs font-bold text-white truncate">
-                      {item.Title}
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      {item.Year}
+                  <div className="flex gap-3 items-center">
+                    <img
+                      src={item.Poster !== "N/A" ? item.Poster : "https://via.placeholder.com/50"}
+                      alt={item.Title}
+                      className="w-10 h-12 object-cover rounded-lg"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-white">
+                        {item.Title}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        Year: {item.Year} • Type: {item.Type}
+                      </div>
                     </div>
                   </div>
+                  
+                  <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-1 rounded-md">
+                    Metadata Only
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Curated Content List */}
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-          {activeTab === "sports"
-            ? SPORTS_MATCHES.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-950/60 border border-slate-800/80 hover:border-emerald-500/50 p-3.5 rounded-xl flex justify-between items-center transition group"
-                >
-                  <div>
-                    <div className="text-sm font-semibold text-white group-hover:text-emerald-400 transition">
-                      {item.title}
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                      <span>{item.league}</span>
-                      <span>•</span>
-                      <span className="text-emerald-400/80">{item.vibe}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      onSelectMovie(item.url);
-                      onClose();
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                  >
-                    Load Stream
-                  </button>
-                </div>
-              ))
-            : MOVIE_VIBES.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-950/60 border border-slate-800/80 hover:border-rose-500/50 p-3.5 rounded-xl flex justify-between items-center transition group"
-                >
-                  <div>
-                    <div className="text-sm font-semibold text-white group-hover:text-rose-400 transition">
-                      {item.title}
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                      <span>{item.genre}</span>
-                      <span>•</span>
-                      <span className="text-rose-400/80">{item.vibe}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      onSelectMovie(item.url);
-                      onClose();
-                    }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
-                  >
-                    Watch Now
-                  </button>
-                </div>
-              ))}
-        </div>
+        {activeTab === "sports" && (
+          <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 text-center text-xs text-slate-400">
+            ⚽ Live match channels update automatically when active feeds go live.
+          </div>
+        )}
       </div>
     </div>
   );
