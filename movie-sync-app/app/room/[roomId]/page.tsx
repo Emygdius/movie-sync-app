@@ -31,7 +31,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [videoUrl, setVideoUrl] = useState(
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
   );
-  const [inputUrl, setInputUrl] = useState("");
   const [messages, setMessages] = useState<Array<{ sender: string; text: string }>>([
     { sender: "System", text: `Welcome to ESync Room [${roomId}]! ⚽🍿` },
   ]);
@@ -242,14 +241,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     channelRef.current?.publish("special-moment", { message, style });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputUrl.trim()) {
-      handleLoadVideo(inputUrl);
-      setInputUrl("");
-    }
-  };
-
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (chatInput.trim()) {
@@ -401,46 +392,40 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
             )}
           </div>
 
-          {/* Host Controls */}
+          {/* Modern Host Controls: Search & Catalog Launcher */}
           {isHost ? (
             <div className="flex flex-col sm:flex-row gap-2">
-              <form onSubmit={handleFormSubmit} className="flex-1 flex gap-2">
+              <div className="flex-1 relative">
                 <input
                   type="text"
+                  readOnly
+                  onClick={() => setIsVibeModalOpen(true)}
                   placeholder={
                     roomMode === "sports"
-                      ? "Paste direct stream URL or HLS link (.m3u8)..."
-                      : "Paste direct MP4 or video stream link..."
+                      ? "🔍 Click to search live matches or stream feeds..."
+                      : "🔍 Click to search movies, series, or vibe picks..."
                   }
-                  value={inputUrl}
-                  onChange={(e) => setInputUrl(e.target.value)}
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200"
+                  className="w-full bg-slate-900 border border-slate-800 hover:border-indigo-500/50 cursor-pointer rounded-xl px-4 py-2.5 text-xs text-slate-300 focus:outline-none transition shadow-inner"
                 />
-                <button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
-                >
-                  {roomMode === "sports" ? "Change Match" : "Change Movie"}
-                </button>
-              </form>
+              </div>
 
               <button
                 onClick={() => setIsVibeModalOpen(true)}
-                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 whitespace-nowrap"
               >
-                ✨ {roomMode === "sports" ? "Match Matcher" : "Vibe Matcher"}
+                🎬 Search Catalog
               </button>
 
               <button
                 onClick={() => setIsMomentModalOpen(true)}
-                className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:opacity-90 text-pink-300 border border-pink-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition whitespace-nowrap"
+                className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:opacity-90 text-pink-300 border border-pink-500/30 px-4 py-2.5 rounded-xl text-xs font-semibold transition whitespace-nowrap"
               >
                 💖 Trigger Moment
               </button>
             </div>
           ) : (
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 text-center text-xs text-slate-400">
-              🔒 Only the host can change the {roomMode === "sports" ? "match" : "movie"} stream. Sit back and enjoy!
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-center text-xs text-slate-400">
+              🔒 Only the host can choose what to stream. Sit back and enjoy!
             </div>
           )}
         </div>
