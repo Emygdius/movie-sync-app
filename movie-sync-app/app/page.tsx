@@ -14,6 +14,7 @@ export default function Home() {
         <div className="flex justify-center gap-4 pt-4">
           <Link 
             href="/room" 
+            prefetch={false}
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-lg shadow-lg transition inline-block cursor-pointer"
           >
             Create Watch Room

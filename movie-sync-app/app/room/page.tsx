@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 
 export default function RoomPage() {
+  const { user, isLoaded } = useUser();
+
+  // State for Video & Chat
   const [videoUrl, setVideoUrl] = useState(
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
   );
@@ -12,8 +16,23 @@ export default function RoomPage() {
   ]);
   const [chatInput, setChatInput] = useState("");
 
+  // Host Permission Logic
+  const [hostId, setHostId] = useState<string | null>(null);
+
+  // Determine if the current active user is the host
+  const isHost = isLoaded && user?.id === hostId;
+
+  // Set the first authenticated user who opens the room as Host
+  useEffect(() => {
+    if (user && !hostId) {
+      setHostId(user.id);
+    }
+  }, [user, hostId]);
+
   const handleLoadVideo = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isHost) return; // Prevent guests from triggering URL changes
+
     if (inputUrl.trim()) {
       setVideoUrl(inputUrl);
       setInputUrl("");
@@ -23,7 +42,8 @@ export default function RoomPage() {
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (chatInput.trim()) {
-      setMessages((prev) => [...prev, `You: ${chatInput}`]);
+      const senderName = user?.firstName || "Guest";
+      setMessages((prev) => [...prev, `${senderName}: ${chatInput}`]);
       setChatInput("");
     }
   };
@@ -38,6 +58,9 @@ export default function RoomPage() {
           </h1>
           <span className="text-xs bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full font-medium">
             Date Night Mode
+          </span>
+          <span className="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full font-medium">
+            {isHost ? "👑 Host" : "🍿 Guest"}
           </span>
         </div>
         <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs font-semibold border border-emerald-500/20">
@@ -68,22 +91,28 @@ export default function RoomPage() {
             </div>
           </div>
 
-          {/* URL Input Bar */}
-          <form onSubmit={handleLoadVideo} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Paste direct MP4 or video stream link..."
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200"
-            />
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
-            >
-              Change Movie
-            </button>
-          </form>
+          {/* URL Input Bar (HOST ONLY vs GUEST VIEW) */}
+          {isHost ? (
+            <form onSubmit={handleLoadVideo} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Paste direct MP4 or video stream link..."
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200"
+              />
+              <button
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
+              >
+                Change Movie
+              </button>
+            </form>
+          ) : (
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 text-center text-xs text-slate-400">
+              🔒 Only the host can select or change the movie. Sit back and enjoy!
+            </div>
+          )}
         </div>
 
         {/* Right Area: Interactive Chat Panel */}
@@ -91,20 +120,23 @@ export default function RoomPage() {
           <div className="p-3 border-b border-slate-800 font-semibold text-slate-300 text-sm">
             Live Chat
           </div>
-          
+
           <div className="flex-1 p-4 overflow-y-auto space-y-2 text-sm text-slate-300">
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`p-2 rounded-lg text-xs ${
-                  msg.startsWith("You:")
-                    ? "bg-indigo-600/30 border border-indigo-500/30 self-end"
-                    : "bg-slate-800/50"
-                }`}
-              >
-                {msg}
-              </div>
-            ))}
+            {messages.map((msg, index) => {
+              const isUserMsg = msg.startsWith(`${user?.firstName || "You"}:`);
+              return (
+                <div
+                  key={index}
+                  className={`p-2 rounded-lg text-xs ${
+                    isUserMsg
+                      ? "bg-indigo-600/30 border border-indigo-500/30 self-end text-right"
+                      : "bg-slate-800/50"
+                  }`}
+                >
+                  {msg}
+                </div>
+              );
+            })}
           </div>
 
           <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 flex gap-2">
@@ -115,8 +147,8 @@ export default function RoomPage() {
               onChange={(e) => setChatInput(e.target.value)}
               className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             />
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="bg-indigo-600 text-xs px-3 py-2 rounded-lg font-semibold hover:bg-indigo-500"
             >
               Send

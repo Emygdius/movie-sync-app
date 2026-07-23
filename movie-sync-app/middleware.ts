@@ -1,10 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// Routes that require sign-in
-const isProtectedRoute = createRouteMatcher(['/room(.*)']);
+// Define public routes that ANYONE (guests & host) can access without signing in
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/room(.*)', // Allows guests to freely open room links!
+]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
+  // If the route is NOT public, require sign-in
+  if (!isPublicRoute(req)) {
     await auth.protect();
   }
 });
