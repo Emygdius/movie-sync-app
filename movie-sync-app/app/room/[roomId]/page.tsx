@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, use } from "react";
 import { useUser } from "@clerk/nextjs";
 import * as Ably from "ably";
 import VibeModal from "../../components/VibeModal";
+import { useWebRTC } from "../../hooks/useWebRTC";
 
 export default function RoomPage({ params }: { params: Promise<{ roomId: string }> }) {
   const resolvedParams = use(params);
@@ -33,10 +34,38 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [hostId, setHostId] = useState<string | null>(null);
   const isHost = isLoaded && user?.id === hostId;
 
-  // Real-time Refs
+  // Real-time Refs & Channel State
   const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+  const [channelInstance, setChannelInstance] = useState<Ably.RealtimeChannel | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const isRemoteAction = useRef(false);
+
+  // WebRTC Setup
+  const {
+    localStream,
+    remoteStream,
+    toggleVideo,
+    toggleAudio,
+    isVideoMuted,
+    isAudioMuted,
+  } = useWebRTC(channelInstance, isHost);
+
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Bind WebRTC Local Stream
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  // Bind WebRTC Remote Stream
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   // Set initial host
   useEffect(() => {
@@ -50,6 +79,7 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     const client = new Ably.Realtime({ authUrl: "/api/ably" });
     const channel = client.channels.get(`esync-room-${roomId}`);
     channelRef.current = channel;
+    setChannelInstance(channel);
 
     channel.subscribe("sync-video", (msg) => {
       const { type, url, time, mode } = msg.data;
@@ -204,13 +234,62 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
               className="w-full h-full object-contain"
             />
 
-            {/* Webcam Placeholders */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2 pointer-events-none">
-              <div className="w-32 aspect-video bg-slate-900/90 rounded-lg border border-white/20 flex items-center justify-center text-[10px] text-slate-300 backdrop-blur shadow-lg">
-                Partner Feed 📹
+            {/* Live WebRTC Camera Overlays */}
+            <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
+              {/* Partner Feed */}
+              <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-2xl backdrop-blur">
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                {!remoteStream && (
+                  <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                    Waiting for Partner... 📹
+                  </div>
+                )}
+                <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                  Partner
+                </div>
               </div>
-              <div className="w-32 aspect-video bg-slate-900/90 rounded-lg border border-white/20 flex items-center justify-center text-[10px] text-slate-300 backdrop-blur shadow-lg">
-                Your Feed 📹
+
+              {/* Your Local Feed */}
+              <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-2xl backdrop-blur group">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isVideoMuted ? "hidden" : "block"}`}
+                />
+                {isVideoMuted && (
+                  <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
+                    Cam Off 🚫
+                  </div>
+                )}
+
+                {/* Mic/Cam Quick Controls on Hover */}
+                <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                  <button
+                    type="button"
+                    onClick={toggleAudio}
+                    className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                  >
+                    {isAudioMuted ? "🔇" : "🎙️"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleVideo}
+                    className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                  >
+                    {isVideoMuted ? "📷" : "📹"}
+                  </button>
+                </div>
+
+                <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                  You
+                </div>
               </div>
             </div>
           </div>
