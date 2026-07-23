@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
+import * as Ably from "ably";
 
 export default function RoomPage() {
   const { user, isLoaded } = useUser();
@@ -18,23 +19,84 @@ export default function RoomPage() {
 
   // Host Permission Logic
   const [hostId, setHostId] = useState<string | null>(null);
-
-  // Determine if the current active user is the host
   const isHost = isLoaded && user?.id === hostId;
 
-  // Set the first authenticated user who opens the room as Host
+  // Real-time Refs
+  const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const isRemoteAction = useRef(false);
+
+  // Set initial host
   useEffect(() => {
     if (user && !hostId) {
       setHostId(user.id);
     }
   }, [user, hostId]);
 
+  // Connect to Ably WebSocket Channel using Token Auth route
+  useEffect(() => {
+    const client = new Ably.Realtime({ authUrl: "/api/ably" });
+    const channel = client.channels.get("movie-room-1");
+    channelRef.current = channel;
+
+    // Listen for incoming sync events (Play, Pause, Change Movie)
+    channel.subscribe("sync-video", (msg) => {
+      const { type, url, time } = msg.data;
+      isRemoteAction.current = true;
+
+      if (type === "CHANGE_URL") {
+        setVideoUrl(url);
+      } else if (type === "PLAY" && videoRef.current) {
+        videoRef.current.currentTime = time;
+        videoRef.current.play();
+      } else if (type === "PAUSE" && videoRef.current) {
+        videoRef.current.currentTime = time;
+        videoRef.current.pause();
+      }
+
+      setTimeout(() => {
+        isRemoteAction.current = false;
+      }, 300);
+    });
+
+    // Listen for incoming live chat messages
+    channel.subscribe("chat-message", (msg) => {
+      setMessages((prev) => [...prev, msg.data]);
+    });
+
+    return () => {
+      channel.unsubscribe();
+      client.close();
+    };
+  }, []);
+
+  // Broadcast handlers
+  const handlePlay = () => {
+    if (isRemoteAction.current || !videoRef.current) return;
+    channelRef.current?.publish("sync-video", {
+      type: "PLAY",
+      time: videoRef.current.currentTime,
+    });
+  };
+
+  const handlePause = () => {
+    if (isRemoteAction.current || !videoRef.current) return;
+    channelRef.current?.publish("sync-video", {
+      type: "PAUSE",
+      time: videoRef.current.currentTime,
+    });
+  };
+
   const handleLoadVideo = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isHost) return; // Prevent guests from triggering URL changes
+    if (!isHost) return;
 
     if (inputUrl.trim()) {
       setVideoUrl(inputUrl);
+      channelRef.current?.publish("sync-video", {
+        type: "CHANGE_URL",
+        url: inputUrl,
+      });
       setInputUrl("");
     }
   };
@@ -43,7 +105,9 @@ export default function RoomPage() {
     e.preventDefault();
     if (chatInput.trim()) {
       const senderName = user?.firstName || "Guest";
-      setMessages((prev) => [...prev, `${senderName}: ${chatInput}`]);
+      const fullMsg = `${senderName}: ${chatInput}`;
+
+      channelRef.current?.publish("chat-message", fullMsg);
       setChatInput("");
     }
   };
@@ -75,13 +139,16 @@ export default function RoomPage() {
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center">
             {/* Main Movie Stream */}
             <video
+              ref={videoRef}
               src={videoUrl}
               controls
+              onPlay={handlePlay}
+              onPause={handlePause}
               className="w-full h-full object-contain"
             />
 
             {/* Webcam Floating Cards (Overlays) */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <div className="absolute top-4 right-4 flex flex-col gap-2 pointer-events-none">
               <div className="w-32 aspect-video bg-slate-900/90 rounded-lg border border-white/20 flex items-center justify-center text-[10px] text-slate-300 backdrop-blur shadow-lg">
                 Partner Feed 📹
               </div>
