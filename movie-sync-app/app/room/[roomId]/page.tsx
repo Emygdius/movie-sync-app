@@ -17,16 +17,28 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
   const [roomMode, setRoomMode] = useState<"movie" | "sports">("movie");
   const [isModeSelectorOpen, setIsModeSelectorOpen] = useState(false);
 
+  // Live Score State for Football Mode
+  const [matchData, setMatchData] = useState({
+    homeTeam: "Arsenal",
+    awayTeam: "Chelsea",
+    homeScore: 2,
+    awayScore: 1,
+    minute: "68'",
+    status: "LIVE",
+    league: "Premier League",
+  });
+
   // Video & Chat State
   const [videoUrl, setVideoUrl] = useState(
     "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
   );
   const [inputUrl, setInputUrl] = useState("");
-  const [messages, setMessages] = useState<string[]>([
-    `System: Welcome to ESync Room [${roomId}]! ⚽🍿`,
+  const [messages, setMessages] = useState<Array<{ sender: string; text: string }>>([
+    { sender: "System", text: `Welcome to ESync Room [${roomId}]! ⚽🍿` },
   ]);
   const [chatInput, setChatInput] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true);
 
   // Vibe & Moment Modal States
   const [isVibeModalOpen, setIsVibeModalOpen] = useState(false);
@@ -60,32 +72,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-
-  // Draggable & Minimize Overlay State
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [overlayPos, setOverlayPos] = useState({ x: 16, y: 16 }); // Offset from top-right
-  const isDragging = useRef(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDragging.current = true;
-    dragStartPos.current = {
-      x: e.clientX - overlayPos.x,
-      y: e.clientY - overlayPos.y,
-    };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current) return;
-    setOverlayPos({
-      x: e.clientX - dragStartPos.current.x,
-      y: e.clientY - dragStartPos.current.y,
-    });
-  };
-
-  const handleMouseUp = () => {
-    isDragging.current = false;
-  };
 
   // Bind WebRTC Local Stream
   useEffect(() => {
@@ -207,8 +193,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     e.preventDefault();
     if (chatInput.trim()) {
       const senderName = user?.firstName || "Guest";
-      const fullMsg = `${senderName}: ${chatInput}`;
-      channelRef.current?.publish("chat-message", fullMsg);
+      const payload = { sender: senderName, text: chatInput.trim() };
+      channelRef.current?.publish("chat-message", payload);
       setChatInput("");
     }
   };
@@ -218,6 +204,8 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const currentUserName = user?.firstName || "Guest";
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -252,6 +240,14 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Chat Toggle Button */}
+          <button
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1"
+          >
+            💬 {isChatOpen ? "Hide Chat" : "Show Chat"}
+          </button>
+
           {/* Share Room Link Button */}
           <button
             onClick={copyRoomLink}
@@ -268,13 +264,37 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
 
       {/* Main Content Layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4">
-        {/* Left Area: Main Video Stream & Draggable Webcams */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
-          <div
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center select-none"
-          >
+        {/* Main Video Stream Container */}
+        <div className={`${isChatOpen ? "lg:col-span-3" : "lg:col-span-4"} flex flex-col gap-4 transition-all`}>
+          
+          {/* Live Football Match Scoreboard (Displays when room is in Sports mode) */}
+          {roomMode === "sports" && (
+            <div className="bg-gradient-to-r from-slate-900 via-emerald-950/40 to-slate-900 border border-emerald-500/30 rounded-xl p-3 shadow-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  {matchData.league}
+                </span>
+                <span className="text-xs text-rose-500 font-bold animate-pulse flex items-center gap-1">
+                  ● {matchData.status} ({matchData.minute})
+                </span>
+              </div>
+
+              {/* Match Teams & Score */}
+              <div className="flex items-center gap-4 text-sm font-extrabold text-white">
+                <span>{matchData.homeTeam}</span>
+                <span className="bg-slate-950 border border-emerald-500/40 px-3 py-1 rounded-md text-emerald-400 font-mono text-base">
+                  {matchData.homeScore} - {matchData.awayScore}
+                </span>
+                <span>{matchData.awayTeam}</span>
+              </div>
+
+              <div className="text-[11px] text-slate-400 hidden sm:block">
+                ⚡ Live Score Tracker Active
+              </div>
+            </div>
+          )}
+
+          <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center select-none">
             <video
               ref={videoRef}
               src={videoUrl}
@@ -304,101 +324,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
                 </button>
               </div>
             )}
-
-            {/* Draggable & Collapsible WebRTC Camera Container */}
-            <div
-              style={{ top: `${overlayPos.y}px`, right: `${overlayPos.x}px` }}
-              className="absolute z-30 flex flex-col gap-2"
-            >
-              {isMinimized ? (
-                /* Minimized Floating Bubble */
-                <button
-                  onClick={() => setIsMinimized(false)}
-                  className="bg-slate-900/90 border border-indigo-500/50 text-indigo-300 hover:text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-2xl backdrop-blur flex items-center gap-2 transition"
-                >
-                  <span>📹 Cameras Active</span>
-                  <span className="text-[10px] bg-indigo-600 px-1.5 py-0.5 rounded-full text-white">
-                    Expand
-                  </span>
-                </button>
-              ) : (
-                /* Expanded Floating Camera Deck */
-                <div className="flex flex-col gap-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/80 shadow-2xl backdrop-blur">
-                  {/* Drag Handle & Control Header */}
-                  <div
-                    onMouseDown={handleMouseDown}
-                    className="flex justify-between items-center cursor-grab active:cursor-grabbing pb-1 border-b border-slate-800/60 px-1"
-                  >
-                    <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                      <span>::</span> Live Video
-                    </span>
-                    <button
-                      onClick={() => setIsMinimized(true)}
-                      className="text-slate-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded bg-slate-800/60"
-                      title="Minimize Overlay"
-                    >
-                      —
-                    </button>
-                  </div>
-
-                  {/* Partner Video Feed */}
-                  <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-lg">
-                    <video
-                      ref={remoteVideoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                    {!remoteStream && (
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                        Waiting for Partner... 📹
-                      </div>
-                    )}
-                    <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
-                      Partner
-                    </div>
-                  </div>
-
-                  {/* Local Video Feed */}
-                  <div className="w-36 aspect-video bg-slate-900/90 rounded-xl border border-white/20 overflow-hidden relative shadow-lg group">
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className={`w-full h-full object-cover ${isVideoMuted ? "hidden" : "block"}`}
-                    />
-                    {isVideoMuted && (
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">
-                        Cam Off 🚫
-                      </div>
-                    )}
-
-                    {/* Mic/Cam Quick Controls on Hover */}
-                    <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                      <button
-                        type="button"
-                        onClick={toggleAudio}
-                        className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
-                      >
-                        {isAudioMuted ? "🔇" : "🎙️"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={toggleVideo}
-                        className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
-                      >
-                        {isVideoMuted ? "📷" : "📹"}
-                      </button>
-                    </div>
-
-                    <div className="absolute bottom-1 left-2 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
-                      You
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Host Controls */}
@@ -445,49 +370,139 @@ export default function RoomPage({ params }: { params: Promise<{ roomId: string 
           )}
         </div>
 
-        {/* Right Area: Interactive Live Chat */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col h-[500px] lg:h-auto">
-          <div className="p-3 border-b border-slate-800 font-semibold text-slate-300 text-sm flex justify-between items-center">
-            <span>Live Chat</span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">
-              {roomMode} Sync
-            </span>
-          </div>
+        {/* Right Sidebar: Video Cameras + Collapsible Live Chat */}
+        {isChatOpen && (
+          <div className="flex flex-col gap-4">
+            {/* Live Camera Grid Box */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-2">
+              <div className="text-xs font-semibold text-slate-300 flex justify-between items-center pb-1 border-b border-slate-800">
+                <span>📹 Live Feeds</span>
+                <span className="text-[10px] text-emerald-400">● WebRTC Active</span>
+              </div>
 
-          <div className="flex-1 p-4 overflow-y-auto space-y-2 text-sm text-slate-300">
-            {messages.map((msg, index) => {
-              const isUserMsg = msg.startsWith(`${user?.firstName || "You"}:`);
-              return (
-                <div
-                  key={index}
-                  className={`p-2 rounded-lg text-xs ${
-                    isUserMsg
-                      ? "bg-indigo-600/30 border border-indigo-500/30 self-end text-right"
-                      : "bg-slate-800/50"
-                  }`}
-                >
-                  {msg}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Partner Feed */}
+                <div className="aspect-video bg-slate-950 rounded-lg border border-slate-800 overflow-hidden relative shadow">
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  {!remoteStream && (
+                    <div className="absolute inset-0 flex items-center justify-center text-[9px] text-slate-500 text-center p-1">
+                      Waiting for Partner...
+                    </div>
+                  )}
+                  <div className="absolute bottom-1 left-1.5 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                    Partner
+                  </div>
                 </div>
-              );
-            })}
-          </div>
 
-          <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 flex gap-2">
-            <input
-              type="text"
-              placeholder="Type a message..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-            />
-            <button
-              type="submit"
-              className="bg-indigo-600 text-xs px-3 py-2 rounded-lg font-semibold hover:bg-indigo-500"
-            >
-              Send
-            </button>
-          </form>
-        </div>
+                {/* Local Feed */}
+                <div className="aspect-video bg-slate-950 rounded-lg border border-slate-800 overflow-hidden relative shadow group">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${isVideoMuted ? "hidden" : "block"}`}
+                  />
+                  {isVideoMuted && (
+                    <div className="absolute inset-0 flex items-center justify-center text-[9px] text-slate-500">
+                      Cam Off
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                    <button
+                      type="button"
+                      onClick={toggleAudio}
+                      className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                    >
+                      {isAudioMuted ? "🔇" : "🎙️"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleVideo}
+                      className="bg-black/70 p-1 rounded text-[10px] hover:bg-black"
+                    >
+                      {isVideoMuted ? "📷" : "📹"}
+                    </button>
+                  </div>
+
+                  <div className="absolute bottom-1 left-1.5 text-[9px] bg-black/60 px-1.5 py-0.5 rounded text-white font-medium">
+                    You
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Live Chat */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col flex-1 h-[400px] lg:h-auto overflow-hidden">
+              <div className="p-3 border-b border-slate-800 font-semibold text-slate-300 text-sm flex justify-between items-center">
+                <span>Live Chat</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                  ESync
+                </span>
+              </div>
+
+              <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs text-slate-300">
+                {messages.map((msg, index) => {
+                  const isUserMsg = msg.sender === currentUserName;
+                  const isSystem = msg.sender === "System";
+
+                  if (isSystem) {
+                    return (
+                      <div
+                        key={index}
+                        className="bg-slate-800/40 text-slate-400 p-2 rounded-lg text-[11px] text-center border border-slate-800"
+                      >
+                        {msg.text}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={index}
+                      className={`flex flex-col ${isUserMsg ? "items-end" : "items-start"}`}
+                    >
+                      <span className="text-[10px] text-slate-500 px-1 mb-0.5">
+                        {msg.sender}
+                      </span>
+                      <div
+                        className={`p-2 rounded-xl text-xs max-w-[85%] break-words ${
+                          isUserMsg
+                            ? "bg-indigo-600 text-white rounded-br-none shadow"
+                            : "bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700/50"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="submit"
+                  className="bg-indigo-600 text-xs px-3.5 py-2 rounded-lg font-semibold hover:bg-indigo-500 text-white transition"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mode Selection Modal for Host */}
