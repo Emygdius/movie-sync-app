@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import * as Ably from "ably";
+import VibeModal from "../components/VibeModal";
 
 export default function RoomPage() {
   const { user, isLoaded } = useUser();
@@ -16,6 +17,9 @@ export default function RoomPage() {
     "System: Welcome to your private watch room! ❤️",
   ]);
   const [chatInput, setChatInput] = useState("");
+
+  // Vibe Modal State
+  const [isVibeModalOpen, setIsVibeModalOpen] = useState(false);
 
   // Host Permission Logic
   const [hostId, setHostId] = useState<string | null>(null);
@@ -33,13 +37,12 @@ export default function RoomPage() {
     }
   }, [user, hostId]);
 
-  // Connect to Ably WebSocket Channel using Token Auth route
+  // Connect to Ably WebSocket Channel
   useEffect(() => {
     const client = new Ably.Realtime({ authUrl: "/api/ably" });
     const channel = client.channels.get("movie-room-1");
     channelRef.current = channel;
 
-    // Listen for incoming sync events (Play, Pause, Change Movie)
     channel.subscribe("sync-video", (msg) => {
       const { type, url, time } = msg.data;
       isRemoteAction.current = true;
@@ -59,7 +62,6 @@ export default function RoomPage() {
       }, 300);
     });
 
-    // Listen for incoming live chat messages
     channel.subscribe("chat-message", (msg) => {
       setMessages((prev) => [...prev, msg.data]);
     });
@@ -70,7 +72,6 @@ export default function RoomPage() {
     };
   }, []);
 
-  // Broadcast handlers
   const handlePlay = () => {
     if (isRemoteAction.current || !videoRef.current) return;
     channelRef.current?.publish("sync-video", {
@@ -87,16 +88,19 @@ export default function RoomPage() {
     });
   };
 
-  const handleLoadVideo = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLoadVideo = (urlToLoad: string) => {
     if (!isHost) return;
+    setVideoUrl(urlToLoad);
+    channelRef.current?.publish("sync-video", {
+      type: "CHANGE_URL",
+      url: urlToLoad,
+    });
+  };
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (inputUrl.trim()) {
-      setVideoUrl(inputUrl);
-      channelRef.current?.publish("sync-video", {
-        type: "CHANGE_URL",
-        url: inputUrl,
-      });
+      handleLoadVideo(inputUrl);
       setInputUrl("");
     }
   };
@@ -106,7 +110,6 @@ export default function RoomPage() {
     if (chatInput.trim()) {
       const senderName = user?.firstName || "Guest";
       const fullMsg = `${senderName}: ${chatInput}`;
-
       channelRef.current?.publish("chat-message", fullMsg);
       setChatInput("");
     }
@@ -137,7 +140,6 @@ export default function RoomPage() {
         {/* Left Area: Video Player & Webcam Overlays */}
         <div className="lg:col-span-3 flex flex-col gap-4">
           <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center">
-            {/* Main Movie Stream */}
             <video
               ref={videoRef}
               src={videoUrl}
@@ -147,7 +149,7 @@ export default function RoomPage() {
               className="w-full h-full object-contain"
             />
 
-            {/* Webcam Floating Cards (Overlays) */}
+            {/* Webcam Floating Cards */}
             <div className="absolute top-4 right-4 flex flex-col gap-2 pointer-events-none">
               <div className="w-32 aspect-video bg-slate-900/90 rounded-lg border border-white/20 flex items-center justify-center text-[10px] text-slate-300 backdrop-blur shadow-lg">
                 Partner Feed 📹
@@ -158,23 +160,32 @@ export default function RoomPage() {
             </div>
           </div>
 
-          {/* URL Input Bar (HOST ONLY vs GUEST VIEW) */}
+          {/* URL Input Bar & Vibe Recommendation Button */}
           {isHost ? (
-            <form onSubmit={handleLoadVideo} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Paste direct MP4 or video stream link..."
-                value={inputUrl}
-                onChange={(e) => setInputUrl(e.target.value)}
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200"
-              />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <form onSubmit={handleFormSubmit} className="flex-1 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Paste direct MP4 or video stream link..."
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200"
+                />
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
+                >
+                  Change Movie
+                </button>
+              </form>
+
               <button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
+                onClick={() => setIsVibeModalOpen(true)}
+                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 whitespace-nowrap"
               >
-                Change Movie
+                ✨ Vibe Matcher
               </button>
-            </form>
+            </div>
           ) : (
             <div className="bg-slate-900/60 border border-slate-800/80 rounded-lg p-3 text-center text-xs text-slate-400">
               🔒 Only the host can select or change the movie. Sit back and enjoy!
@@ -223,6 +234,13 @@ export default function RoomPage() {
           </form>
         </div>
       </div>
+
+      {/* Render Modal */}
+      <VibeModal
+        isOpen={isVibeModalOpen}
+        onClose={() => setIsVibeModalOpen(false)}
+        onSelectMovie={handleLoadVideo}
+      />
     </div>
   );
 }
